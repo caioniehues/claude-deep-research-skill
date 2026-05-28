@@ -99,6 +99,26 @@ def read_jsonl(path: str) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
+# Display numbering — single source of truth for [N]
+# ---------------------------------------------------------------------------
+
+def build_display_map(sources: list[dict]) -> dict[str, int]:
+    """Map each unique source_id to its display number [N].
+
+    Sources are deduplicated by source_id (first occurrence wins) and numbered
+    contiguously from 1 in registration order. This is the one authority for [N]
+    shared by assign-display-numbers, export-bibliography, and claim-support
+    verification — do not re-derive numbering inline anywhere else.
+    """
+    mapping: dict[str, int] = {}
+    for src in sources:
+        sid = src.get('source_id')
+        if sid and sid not in mapping:
+            mapping[sid] = len(mapping) + 1
+    return mapping
+
+
+# ---------------------------------------------------------------------------
 # Subcommands
 # ---------------------------------------------------------------------------
 
@@ -192,11 +212,7 @@ def cmd_assign_display_numbers(args: argparse.Namespace) -> None:
     sources_path = os.path.join(args.dir, 'sources.jsonl')
     sources = read_jsonl(sources_path)
 
-    mapping = {}
-    for i, src in enumerate(sources, 1):
-        sid = src['source_id']
-        if sid not in mapping:
-            mapping[sid] = i
+    mapping = build_display_map(sources)
 
     print(json.dumps(mapping, indent=2))
 
@@ -206,7 +222,10 @@ def cmd_export_bibliography(args: argparse.Namespace) -> None:
     sources_path = os.path.join(args.dir, 'sources.jsonl')
     sources = read_jsonl(sources_path)
 
-    # Deduplicate by source_id, preserve order
+    # Deduplicate by source_id, preserve order. Numbers come from the shared
+    # display map so the bibliography, assign-display-numbers, and verification
+    # never diverge.
+    display_map = build_display_map(sources)
     seen = set()
     unique = []
     for src in sources:
@@ -218,7 +237,8 @@ def cmd_export_bibliography(args: argparse.Namespace) -> None:
 
     if style == 'markdown':
         lines = ['## Bibliography', '']
-        for i, src in enumerate(unique, 1):
+        for src in unique:
+            i = display_map[src['source_id']]
             author_str = ''
             if src.get('authors'):
                 authors = src['authors']
@@ -237,7 +257,8 @@ def cmd_export_bibliography(args: argparse.Namespace) -> None:
 
     elif style == 'json':
         out = []
-        for i, src in enumerate(unique, 1):
+        for src in unique:
+            i = display_map[src['source_id']]
             out.append({
                 'display_number': i,
                 'source_id': src['source_id'],

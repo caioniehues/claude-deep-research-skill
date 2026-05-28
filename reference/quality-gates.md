@@ -27,14 +27,26 @@ python scripts/validate_report.py --report [path]
 3. Citations formatted [1], [2], [3]
 4. Bibliography matches citations
 5. No placeholder text (TBD, TODO)
-6. Word count reasonable (500-10000)
-7. Minimum 10 sources
-8. No broken internal links
+6. No content-truncation placeholders ("Content continues", "[Sections X-Y]")
+7. Word count reasonable (≥500)
+8. Source floor: error if <5 sources, warn if 5-9 (recommended ≥10)
+9. No broken internal links
 
 **Failure handling:**
 - Attempt 1: Auto-fix formatting/links
 - Attempt 2: Manual review + correction
 - After 2 failures: STOP, report issues, ask user
+
+### Claim-Support Verification (v3.0)
+
+```bash
+python scripts/extract_claims.py extract --report [path] --dir [folder]
+python scripts/verify_claim_support.py verify --dir [folder] --strict
+```
+
+**What it does:** Decomposes the report into typed atomic claims, resolves each `[N]` back to its stable `source_id`, gathers the linked evidence from `evidence.jsonl`, and scores support deterministically (no LLM). Under `--strict` it exits non-zero if any **factual** claim is unsupported.
+
+**Prerequisite:** the pinned ordering in `reference/methodology.md` → "Verification Leg" must hold — register all sources, `assign-display-numbers`, then draft using that exact `[N]` map. A non-zero exit is a hard gate, not a warning.
 
 ### Validation Loop Protocol
 
@@ -42,13 +54,14 @@ python scripts/validate_report.py --report [path]
 
 1. Run `python scripts/validate_report.py --report [path]`
 2. Run `python scripts/verify_citations.py --report [path]`
-3. If EITHER fails:
+3. Run `python scripts/extract_claims.py extract --report [path] --dir [folder]` then `python scripts/verify_claim_support.py verify --dir [folder] --strict`
+4. If ANY fails:
    - Read error output carefully
    - Fix the specific issues identified
-   - Re-run BOTH validators
-4. Maximum 3 retry cycles. If still failing after 3 cycles: STOP and report issues to user.
+   - Re-run all three validators
+5. Maximum 3 retry cycles. If still failing after 3 cycles: STOP and report issues to user.
 
-**Do NOT skip validation.** Every report must pass both scripts before delivery.
+**Do NOT skip validation.** Every report must pass all three checks before delivery.
 
 ---
 

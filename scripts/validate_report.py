@@ -267,8 +267,18 @@ class ReportValidator:
 
         source_count = len(set(bib_entries))
 
+        # Tiered floor per quality-gates.md Error Handling:
+        #   <5  -> hard stop (report unusable), 5-9 -> allowed with caveat, >=10 -> meets standard.
+        if source_count < 5:
+            self.errors.append(
+                f"Only {source_count} sources (hard floor is 5; <5 is a documented stop condition)"
+            )
+            return False
+
         if source_count < 10:
-            self.warnings.append(f"Only {source_count} sources (recommended: ≥10)")
+            self.warnings.append(
+                f"Only {source_count} sources (recommended: ≥10; note in Limitations and add verification)"
+            )
 
         return True
 

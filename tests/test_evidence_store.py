@@ -8,11 +8,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from typing import Any
 
 SCRIPT = os.path.join(os.path.dirname(__file__), '..', 'scripts', 'evidence_store.py')
 
 
-def run_es(*args: str) -> dict | list:
+def run_es(*args: str) -> Any:
     """Run evidence_store.py with args, return parsed JSON from stdout."""
     result = subprocess.run(
         [sys.executable, SCRIPT, *args],

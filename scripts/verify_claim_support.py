@@ -19,7 +19,9 @@ import os
 import re
 import sys
 from collections import Counter
-from datetime import datetime, timezone
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from citation_manager import build_display_map
 
 
 # ---------------------------------------------------------------------------
@@ -189,14 +191,10 @@ def cmd_verify(args: argparse.Namespace) -> None:
         ev_by_source.setdefault(sid, []).append(ev.get('quote', ''))
         ev_by_id[eid] = ev
 
-    # Map report [N] citations back to stable source_ids. Numbering mirrors
-    # citation_manager assign-display-numbers (registration order, first
-    # occurrence wins); keep the two in sync.
-    source_to_display: dict[str, int] = {}
-    for i, src in enumerate(sources, 1):
-        sid = src.get('source_id')
-        if sid and sid not in source_to_display:
-            source_to_display[sid] = i
+    # Map report [N] citations back to stable source_ids using the shared
+    # display map (the one authority for [N]), so resolution here can never
+    # drift from assign-display-numbers / export-bibliography.
+    source_to_display = build_display_map(sources)
     display_to_source = {num: sid for sid, num in source_to_display.items()}
 
     # Deduplicate claims
@@ -269,18 +267,26 @@ def cmd_verify(args: argparse.Namespace) -> None:
         1 for c in updated_claims
         if c.get('claim_type') == 'factual' and c.get('support_status') == 'unsupported'
     )
+    factual_needs_review = sum(
+        1 for c in updated_claims
+        if c.get('claim_type') == 'factual' and c.get('support_status') == 'needs_review'
+    )
     total_factual = sum(1 for c in updated_claims if c.get('claim_type') == 'factual')
 
-    # Strict mode: fail if any factual claim is unsupported
-    passed = True
-    if args.strict and factual_unsupported > 0:
-        passed = False
+    # Strict gate: fail on factual claims that are unsupported (no links) OR
+    # needs_review (linked but weak/irrelevant overlap, score < 0.35). Without
+    # the needs_review check, any factual claim linked to any evidence row passes
+    # regardless of relevance — the gate would only catch missing links.
+    factual_failing = factual_unsupported + factual_needs_review
+    passed = not (args.strict and factual_failing > 0)
 
     print(json.dumps({
         'status': 'pass' if passed else 'fail',
         'verified': verified,
         'support_status_counts': dict(status_counts),
         'factual_unsupported': factual_unsupported,
+        'factual_needs_review': factual_needs_review,
+        'factual_failing_strict': factual_failing,
         'total_factual': total_factual,
         'unsupported_rate': round(factual_unsupported / max(total_factual, 1), 3),
     }, indent=2))

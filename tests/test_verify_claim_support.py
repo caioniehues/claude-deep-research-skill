@@ -8,11 +8,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from typing import Any
 
 SCRIPT = os.path.join(os.path.dirname(__file__), '..', 'scripts', 'verify_claim_support.py')
 
 
-def run_vcs(*args: str, expect_fail: bool = False) -> dict | str:
+def run_vcs(*args: str, expect_fail: bool = False) -> Any:
     """Run verify_claim_support.py."""
     result = subprocess.run(
         [sys.executable, SCRIPT, *args],

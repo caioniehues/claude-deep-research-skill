@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document contains the detailed methodology for conducting deep research. The 8 phases represent a comprehensive approach to gathering, verifying, and synthesizing information from multiple sources.
+This document contains the detailed methodology for conducting deep research. The pipeline is **8 core phases** (Scope → Plan → Retrieve → Triangulate → Synthesize → Critique → Refine → Package), plus an interstitial **Phase 4.5 (Outline Refinement)** for Standard/Deep/UltraDeep modes and a post-Package **Verification Leg** (claim-support gate, v3.0). The "8-phase" branding refers to the core phases; 4.5 and the Verification Leg are inserts, not additional core phases.
 
 ---
 
@@ -173,7 +173,11 @@ As results arrive:
 - Geographic diversity (not just US sources)
 
 **Credibility tracking:**
-- Score each source 0-100 using source_evaluator.py
+- Score each source 0-100 using `source_evaluator.py`:
+  ```bash
+  python scripts/source_evaluator.py --json '{"url": "...", "title": "...", "publication_date": "2025-10-15", "author": "..."}'
+  # → JSON: overall_score, domain_authority, recency, expertise, bias_score, recommendation
+  ```
 - Flag low-credibility sources (<40) for additional verification
 - Prioritize high-credibility sources (>80) for core claims
 
@@ -382,6 +386,31 @@ If critique identifies a critical knowledge gap (not just a writing issue), retu
 6. Add methodology appendix
 
 **Output:** Complete research report ready for use
+
+---
+
+## Verification Leg: Claim-Support Gate (v3.0)
+
+Runs **after Phase 8**, once the report markdown exists. This leg moves citation integrity off the model and onto disk: a deterministic, no-LLM gate that proves every factual claim traces to stored evidence and survives context compaction/continuation.
+
+**Objective:** Prove every factual claim in the drafted report links to evidence in `evidence.jsonl`, and block delivery if any factual claim is unsupported.
+
+### Pinned ordering — the `[N]` map is authoritative
+
+Citation number `[N]` is **defined as a source's position in `sources.jsonl`** (first occurrence wins — see `citation_manager.py` `assign-display-numbers`). Drafting `[5]` and *then* registering a different 5th source silently corrupts that citation. Because the store is append-only, such corruption is **detectable but not fixable** without re-drafting. Therefore run these steps in this exact order:
+
+1. **`citation_manager.py init-run`** — create the run dir, `run_manifest.json`, and empty `sources.jsonl` / `evidence.jsonl` / `claims.jsonl`.
+2. **`citation_manager.py register-source`** — register **every** source as you retrieve it, *before* drafting. Re-registering a known source is a no-op (dedup by stable `source_id`).
+3. **`citation_manager.py assign-display-numbers`** — emit the `source_id → [N]` map **only after all sources are registered**. This map is authoritative for the whole report.
+4. **Draft the report using exactly that map.** Every `[N]` in the prose MUST be the number assigned to that `source_id` in step 3. Never invent an `[N]` and then register a source to fit it.
+5. **`extract_claims.py extract`** — decompose the report into typed atomic claims. This captures each sentence's `[N]` into `_citation_numbers` but leaves `cited_source_ids` empty (linking is deferred to verify).
+6. **`verify_claim_support.py verify --strict`** — resolve each claim's `[N]` back to its `source_id` (using the same numbering as step 3), gather the linked evidence, score support, and write `support_status` per claim. Exits non-zero under `--strict` when a factual claim lacks support.
+
+### Contract hole to respect
+
+`extract_claims.py add` (manual single-claim insertion) does **not** write `_citation_numbers`. The auto-linker inside `verify` only resolves citations through `_citation_numbers`, so any claim inserted via `add` MUST supply `cited_source_ids` explicitly in its JSON — otherwise it never links and scores as unsupported.
+
+**Output:** `claims.jsonl` with a `support_status` on every claim; a non-zero `verify --strict` exit blocks delivery.
 
 ---
 

@@ -8,12 +8,13 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from typing import Any
 
 SCRIPT = os.path.join(os.path.dirname(__file__), '..', 'scripts', 'extract_claims.py')
 FIXTURES = os.path.join(os.path.dirname(__file__), 'fixtures')
 
 
-def run_ec(*args: str) -> dict | list:
+def run_ec(*args: str) -> Any:
     """Run extract_claims.py with args."""
     result = subprocess.run(
         [sys.executable, SCRIPT, *args],

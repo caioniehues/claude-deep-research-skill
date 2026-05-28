@@ -1,0 +1,7 @@
+{
+  "include": ["scripts", "tests"],
+  "extraPaths": ["scripts"],
+  "typeCheckingMode": "standard",
+  "reportDeprecated": false,
+  "reportMissingTypeArgument": false
+}

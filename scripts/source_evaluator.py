@@ -4,11 +4,13 @@ Source Credibility Evaluator
 Assesses source quality, credibility, and potential biases
 """
 
-from dataclasses import dataclass
-from typing import List, Dict, Optional
+import argparse
+import json
+import sys
+from dataclasses import dataclass, asdict
+from typing import Dict, Optional
 from urllib.parse import urlparse
 from datetime import datetime, timedelta
-import re
 
 
 @dataclass
@@ -260,33 +262,43 @@ class SourceEvaluator:
             return "verify"
 
 
-# Example usage
-if __name__ == '__main__':
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog='source_evaluator',
+        description='Score a source 0-100 for credibility (domain authority, recency, expertise, bias).',
+        epilog=(
+            "Example:\n"
+            "  python source_evaluator.py --json '{\"url\": \"https://nature.com/...\", "
+            "\"title\": \"...\", \"publication_date\": \"2025-10-15\", \"author\": \"...\"}'"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        '--json', required=True,
+        help='JSON object with url and title (optional: publication_date, author, content)',
+    )
+    args = parser.parse_args()
+
+    try:
+        data = json.loads(args.json)
+    except json.JSONDecodeError as e:
+        print(json.dumps({'error': f'invalid JSON: {e}'}), file=sys.stderr)
+        sys.exit(1)
+
+    if not data.get('url') or not data.get('title'):
+        print(json.dumps({'error': 'url and title are required'}), file=sys.stderr)
+        sys.exit(1)
+
     evaluator = SourceEvaluator()
+    score = evaluator.evaluate_source(
+        url=data['url'],
+        title=data['title'],
+        content=data.get('content'),
+        publication_date=data.get('publication_date'),
+        author=data.get('author'),
+    )
+    print(json.dumps(asdict(score), indent=2, ensure_ascii=False))
 
-    # Test sources
-    test_sources = [
-        {
-            'url': 'https://www.nature.com/articles/s41586-2025-12345',
-            'title': 'Breakthrough in Quantum Computing',
-            'publication_date': '2025-10-15'
-        },
-        {
-            'url': 'https://someblog.wordpress.com/shocking-discovery',
-            'title': 'SHOCKING! You Won\'t Believe This Discovery!',
-            'publication_date': '2020-01-01'
-        },
-        {
-            'url': 'https://docs.python.org/3/library/asyncio.html',
-            'title': 'asyncio — Asynchronous I/O',
-            'publication_date': '2025-11-01'
-        }
-    ]
 
-    for source in test_sources:
-        score = evaluator.evaluate_source(**source)
-        print(f"\nSource: {source['title']}")
-        print(f"URL: {source['url']}")
-        print(f"Overall Score: {score.overall_score}/100")
-        print(f"Recommendation: {score.recommendation}")
-        print(f"Factors: {score.factors}")
+if __name__ == '__main__':
+    main()

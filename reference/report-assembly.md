@@ -64,6 +64,8 @@ python scripts/citation_manager.py assign-display-numbers --dir [folder]
 
 Source identity is stable across edits and continuation. Display numbers are derived at render time, never stored in state. This survives context compaction and enables continuation agents to pick up citation state via stable IDs.
 
+**ORDERING IS LOAD-BEARING:** register **all** sources *before* drafting, then `assign-display-numbers`, then draft using **exactly** that `source_id → [N]` map. `[N]` is a source's position in `sources.jsonl`, so drafting `[5]` and later registering a different 5th source silently corrupts the citation — and the append-only store makes that detectable but not fixable without re-drafting. Do not invent an `[N]` and register a source to fit it. See `reference/methodology.md` → "Verification Leg" for the full pinned sequence.
+
 **Section sequence:**
 
 1. **Executive Summary** (200-400 words)
@@ -101,6 +103,15 @@ Source identity is stable across edits and continuation. Display numbers are der
 8. **Methodology Appendix**
    - Research process, verification approach
    - Tool: Edit(append)
+
+### Phase 8.3: Claim-Support Verification (v3.0)
+
+After the report markdown is complete, run the claim-support gate (see `reference/methodology.md` → "Verification Leg" and `reference/quality-gates.md`):
+```bash
+python scripts/extract_claims.py extract --report [report.md] --dir [folder]
+python scripts/verify_claim_support.py verify --dir [folder] --strict
+```
+`verify --strict` exits non-zero if any factual claim is unsupported — treat a non-zero exit as a hard gate, not a warning.
 
 ---
 

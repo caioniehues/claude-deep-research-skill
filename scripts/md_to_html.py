@@ -4,7 +4,11 @@ Markdown to HTML converter for research reports
 Properly converts markdown sections to HTML while preserving structure and formatting
 """
 
+import argparse
+import json
 import re
+import sys
+from datetime import datetime
 from typing import Tuple
 from pathlib import Path
 
@@ -304,26 +308,100 @@ def _close_sections(html: str) -> str:
     return '\n'.join(result)
 
 
-def main():
-    """Test the converter with a sample markdown file"""
-    import sys
+DEFAULT_TEMPLATE = Path(__file__).resolve().parent.parent / 'templates' / 'mckinsey_report_template.html'
 
-    if len(sys.argv) < 2:
-        print("Usage: python md_to_html.py <markdown_file>")
-        sys.exit(1)
 
-    md_file = Path(sys.argv[1])
-    if not md_file.exists():
-        print(f"Error: File {md_file} not found")
-        sys.exit(1)
+def derive_title(markdown_text: str) -> str:
+    """Report title: first '# ' heading, else first '## ' heading."""
+    for prefix in ('# ', '## '):
+        for line in markdown_text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith(prefix) and not stripped.startswith(prefix + '#'):
+                return stripped[len(prefix):].strip()
+    return 'Research Report'
 
-    markdown_text = md_file.read_text()
+
+def count_sources(bibliography_md: str) -> int:
+    """Count unique [N] entries in the bibliography section."""
+    return len(set(re.findall(r'^\[(\d+)\]', bibliography_md, flags=re.MULTILINE)))
+
+
+def render_document(markdown_text: str, template_text: str) -> str:
+    """Fill the report template with converted content and bibliography."""
     content_html, bib_html = convert_markdown_to_html(markdown_text)
+    parts = markdown_text.split('## Bibliography')
+    bib_md = parts[1] if len(parts) > 1 else ''
+    substitutions = {
+        '{{TITLE}}': derive_title(markdown_text),
+        '{{DATE}}': datetime.now().strftime('%Y-%m-%d'),
+        '{{SOURCE_COUNT}}': str(count_sources(bib_md)),
+        '{{METRICS_DASHBOARD}}': '',
+        '{{CONTENT}}': content_html,
+        '{{BIBLIOGRAPHY}}': bib_html,
+    }
+    out = template_text
+    for placeholder, value in substitutions.items():
+        out = out.replace(placeholder, value)
+    return out
 
-    print("=== CONTENT HTML ===")
-    print(content_html[:1000])
-    print("\n=== BIBLIOGRAPHY HTML ===")
-    print(bib_html[:500])
+
+def fallback_document(markdown_text: str) -> str:
+    """Minimal self-contained HTML when no template is available."""
+    content_html, bib_html = convert_markdown_to_html(markdown_text)
+    title = derive_title(markdown_text)
+    return (
+        '<!DOCTYPE html>\n<html lang="en">\n<head>\n'
+        '<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        f'<title>{title}</title>\n</head>\n<body>\n'
+        f'<h1>{title}</h1>\n{content_html}\n{bib_html}\n</body>\n</html>\n'
+    )
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Convert a research report markdown file to HTML.',
+    )
+    parser.add_argument('markdown_file', help='Path to the markdown report')
+    parser.add_argument(
+        '-o', '--out',
+        help='Output HTML path (default: input path with a .html suffix)',
+    )
+    parser.add_argument(
+        '--template', default=str(DEFAULT_TEMPLATE),
+        help='HTML template containing {{CONTENT}}/{{BIBLIOGRAPHY}} placeholders',
+    )
+    parser.add_argument(
+        '--fragments-only', action='store_true',
+        help='Write only the content + bibliography HTML fragments (no full document)',
+    )
+    args = parser.parse_args()
+
+    md_path = Path(args.markdown_file)
+    if not md_path.exists():
+        print(f'Error: File {md_path} not found', file=sys.stderr)
+        sys.exit(1)
+
+    markdown_text = md_path.read_text(encoding='utf-8')
+    out_path = Path(args.out) if args.out else md_path.with_suffix('.html')
+
+    if args.fragments_only:
+        content_html, bib_html = convert_markdown_to_html(markdown_text)
+        html = content_html + '\n' + bib_html
+    else:
+        template_path = Path(args.template)
+        if template_path.exists():
+            html = render_document(markdown_text, template_path.read_text(encoding='utf-8'))
+        else:
+            html = fallback_document(markdown_text)
+
+    out_path.write_text(html, encoding='utf-8')
+    print(json.dumps({
+        'status': 'ok',
+        'input': str(md_path),
+        'output': str(out_path),
+        'bytes': len(html),
+    }))
 
 
 if __name__ == "__main__":

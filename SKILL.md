@@ -65,6 +65,7 @@ Mode Selection
 - HTML styling: [mckinsey_report_template.html](./templates/mckinsey_report_template.html)
 
 **Scripts:**
+- Evidence pipeline (v3.0): `python scripts/citation_manager.py init-run|register-source|assign-display-numbers` → `evidence_store.py add` → draft → `extract_claims.py extract` → `verify_claim_support.py verify --strict` (pinned ordering: see [methodology.md](./reference/methodology.md) → "Verification Leg")
 - `python scripts/validate_report.py --report [path]`
 - `python scripts/verify_citations.py --report [path]`
 - `python scripts/md_to_html.py [markdown_path]`
@@ -93,7 +94,7 @@ Mode Selection
 - PDF (professional print, auto-opened)
 
 **Quality standards:**
-- 10+ sources, 3+ per major claim (cluster-independent, not just count)
+- 10+ sources hard floor (per-mode FFS targets are higher: Quick 10+, Standard 15+, Deep 25+, UltraDeep 30+), 3+ per major claim (cluster-independent, not just count)
 - All factual claims cited immediately [N] with evidence backing in `evidence.jsonl`
 - Claim-support verification mandatory: no unsupported factual claims pass delivery
 - No placeholders, no fabricated citations

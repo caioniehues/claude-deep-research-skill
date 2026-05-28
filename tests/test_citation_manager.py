@@ -7,11 +7,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from typing import Any
 
 SCRIPT = os.path.join(os.path.dirname(__file__), '..', 'scripts', 'citation_manager.py')
 
 
-def run_cm(*args: str) -> dict:
+def run_cm(*args: str) -> Any:
     """Run citation_manager.py with args, return parsed JSON from stdout."""
     result = subprocess.run(
         [sys.executable, SCRIPT, *args],

@@ -49,7 +49,8 @@ Key features:
 - **First Finish Search**: Adaptive quality thresholds by mode
 - **Critique loop-back**: Phase 6 can return to Phase 3 with delta-queries if critical gaps found
 - **Multi-persona red teaming**: Skeptical Practitioner, Adversarial Reviewer, Implementation Engineer (Deep/UltraDeep)
-- **Disk-persisted citations**: `sources.json` survives context compaction and continuation agents
+- **Disk-persisted evidence (v3.0)**: append-only `sources.jsonl` → `evidence.jsonl` → `claims.jsonl` with stable IDs survive context compaction and continuation agents
+- **Claim-support gate (v3.0)**: deterministic, no-LLM verification that every factual claim traces to stored evidence (`verify_claim_support.py`)
 
 ## Output
 
@@ -92,14 +93,17 @@ deep-research/
 ├── templates/
 │   ├── report_template.md            # Report structure template
 │   └── mckinsey_report_template.html # HTML report template
+├── schemas/                         # Descriptive JSON Schemas (docs, not runtime-enforced)
 ├── scripts/
-│   ├── validate_report.py            # 9-check structure validator
-│   ├── verify_citations.py           # DOI/URL/hallucination checker
-│   ├── source_evaluator.py           # Source credibility scoring
-│   ├── citation_manager.py           # Citation tracking
-│   ├── md_to_html.py                 # Markdown to HTML converter
-│   ├── verify_html.py                # HTML verification
-│   └── research_engine.py            # Core orchestration engine
+│   ├── citation_manager.py          # Stable source IDs, run manifest, display numbering
+│   ├── evidence_store.py            # Append-only evidence store (evidence.jsonl)
+│   ├── extract_claims.py            # Atomic typed-claim ledger (claims.jsonl)
+│   ├── verify_claim_support.py      # Deterministic claim-support gate (v3.0)
+│   ├── source_evaluator.py          # Source credibility scoring
+│   ├── validate_report.py           # 9-check structure validator
+│   ├── verify_citations.py          # DOI/URL/hallucination checker
+│   ├── md_to_html.py                # Markdown to HTML converter
+│   └── verify_html.py               # HTML verification
 └── tests/
     └── fixtures/                     # Test report fixtures
 ```

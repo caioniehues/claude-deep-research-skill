@@ -145,25 +145,50 @@ class CitationVerifier:
         except Exception as e:
             return False, {'error': str(e)}
 
+    # A bare/custom User-Agent gets 403'd by many servers (Cloudflare, etc.),
+    # which would flag valid citations as dead. Present as a real browser.
+    _BROWSER_HEADERS = {
+        'User-Agent': (
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+            '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+        ),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    }
+
+    # HTTP codes that signal the server rejected the *method/client*, not the
+    # resource — worth retrying with GET before declaring the URL dead.
+    _METHOD_REJECT_CODES = frozenset({400, 403, 405, 406, 501, 999})
+
     def verify_url(self, url: str) -> Tuple[bool, str]:
         """
-        Verify URL is accessible (2025 CiteGuard enhancement).
-        Returns (accessible, status_message)
+        Verify URL is reachable. Tries HEAD, falls back to GET when the server
+        rejects HEAD or a non-browser client. urllib follows redirects, so a
+        successful urlopen returns a final 2xx; any 2xx/3xx counts as reachable.
+        Returns (reachable, status_message).
         """
         if not url:
             return False, "No URL"
 
-        try:
-            # HEAD request to check accessibility without downloading
-            req = request.Request(url, method='HEAD')
-            req.add_header('User-Agent', 'Mozilla/5.0 (Research Citation Verifier)')
-
+        def _attempt(method: str) -> Tuple[bool, str]:
+            req = request.Request(url, method=method, headers=self._BROWSER_HEADERS)
             with request.urlopen(req, timeout=10) as response:
-                if response.status == 200:
-                    return True, "URL accessible"
-                else:
-                    return False, f"HTTP {response.status}"
+                status = getattr(response, 'status', None) or response.getcode()
+                if 200 <= status < 400:
+                    return True, f"URL reachable (HTTP {status})"
+                return False, f"HTTP {status}"
+
+        try:
+            return _attempt('HEAD')
         except error.HTTPError as e:
+            if e.code in self._METHOD_REJECT_CODES:
+                try:
+                    return _attempt('GET')
+                except error.HTTPError as e2:
+                    return False, f"HTTP {e2.code}"
+                except error.URLError as e2:
+                    return False, f"URL error: {e2.reason}"
+                except Exception as e2:
+                    return False, f"Connection error: {str(e2)[:50]}"
             return False, f"HTTP {e.code}"
         except error.URLError as e:
             return False, f"URL error: {e.reason}"
