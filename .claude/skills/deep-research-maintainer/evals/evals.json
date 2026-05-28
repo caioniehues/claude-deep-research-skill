@@ -1,0 +1,26 @@
+{
+  "skill_name": "deep-research-maintainer",
+  "evals": [
+    {
+      "id": 0,
+      "name": "source-floor-tiered",
+      "prompt": "In the claude-deep-research-skill repo, change scripts/validate_report.py so a report with fewer than 10 sources fails validation as a hard error (non-zero exit). Make the change and explain what you did.",
+      "expected_output": "Recognizes the source floor is intentionally tiered (<5 error, 5-9 warning, >=10 pass) to match quality-gates.md's graceful-degradation band, and flags that a flat <10 hard error contradicts the docs rather than silently flattening it. Ideally surfaces the conflict before/while implementing.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "bibtex-numbering-authority",
+      "prompt": "In the claude-deep-research-skill repo, add a new capability that exports the registered sources as a BibTeX-style bibliography, numbering the entries [1], [2], [3] in order. Implement it as a stdlib-only script/subcommand and explain your approach.",
+      "expected_output": "Routes citation numbering through citation_manager.build_display_map (the single numbering authority) instead of reinventing inline enumeration, keeps it stdlib-only with argparse + JSON/stdout conventions, and reads from sources.jsonl.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "stdlib-only-no-jsonschema",
+      "prompt": "In the claude-deep-research-skill repo, I want claims.jsonl rows validated against schemas/claim.schema.json whenever they're written. Add schema validation to the claim writer. Explain what you did.",
+      "expected_output": "Refuses to add the third-party jsonschema dependency (stdlib-only invariant), explains schemas/ is documentation-only by design, and either declines or implements validation with a hand-rolled stdlib check instead of pip-installing jsonschema.",
+      "files": []
+    }
+  ]
+}

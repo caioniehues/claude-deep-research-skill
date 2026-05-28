@@ -38,3 +38,7 @@ htmlcov/
 # Node (eslint and other dev tooling)
 node_modules/
 npm-debug.log*
+
+# Skill-creator eval scratch + agent worktrees (local only)
+.claude/worktrees/
+.claude/skills/*-workspace/
