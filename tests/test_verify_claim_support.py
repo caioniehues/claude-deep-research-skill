@@ -195,6 +195,76 @@ class TestVerifyPartial(unittest.TestCase):
         self.assertIn(claims[0]['support_status'], ('partial', 'needs_review', 'supported'))
 
 
+class TestCitationLinking(unittest.TestCase):
+    """verify resolves report [N] citations to source_ids before scoring."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        # Three sources; display numbers follow registration order: 1, 2, 3.
+        write_jsonl(os.path.join(self.tmpdir, 'sources.jsonl'), [
+            {'source_id': 'src_aaa', 'title': 'First'},
+            {'source_id': 'src_bbb', 'title': 'Second'},
+            {'source_id': 'src_ccc', 'title': 'Third'},
+        ])
+        write_jsonl(os.path.join(self.tmpdir, 'evidence.jsonl'), [
+            {
+                'evidence_id': 'ev_ccc_001',
+                'source_id': 'src_ccc',
+                'quote': "Shor's algorithm can factor large integers exponentially faster than classical methods, threatening RSA-2048 encryption.",
+                'evidence_type': 'direct_quote',
+            },
+        ])
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def test_links_citation_number_to_source(self):
+        # Claim cites [3] with empty cited_source_ids — linker must fill it from
+        # _citation_numbers and the claim must end up supported.
+        write_jsonl(os.path.join(self.tmpdir, 'claims.jsonl'), [
+            {
+                'claim_id': 'clm_link_001',
+                'section_id': 'finding_1',
+                'text': "Shor's algorithm can factor large integers exponentially faster than classical methods, threatening RSA-2048.",
+                'claim_type': 'factual',
+                'cited_source_ids': [],
+                'evidence_ids': [],
+                'support_status': 'unverified',
+                '_citation_numbers': [3],
+            },
+        ])
+        out = run_vcs('verify', '--dir', self.tmpdir)
+        self.assertEqual(out['factual_unsupported'], 0)
+
+        with open(os.path.join(self.tmpdir, 'claims.jsonl')) as f:
+            claim = json.loads(f.readline())
+        # Contract: the linker persisted the resolved source_id.
+        self.assertEqual(claim['cited_source_ids'], ['src_ccc'])
+        self.assertEqual(claim['support_status'], 'supported')
+
+    def test_dangling_citation_stays_unsupported(self):
+        # Citation number with no corresponding source resolves to nothing.
+        write_jsonl(os.path.join(self.tmpdir, 'claims.jsonl'), [
+            {
+                'claim_id': 'clm_dangle_001',
+                'section_id': 'finding_1',
+                'text': 'A factual claim citing a source that was never registered.',
+                'claim_type': 'factual',
+                'cited_source_ids': [],
+                'evidence_ids': [],
+                'support_status': 'unverified',
+                '_citation_numbers': [99],
+            },
+        ])
+        out = run_vcs('verify', '--dir', self.tmpdir)
+        self.assertEqual(out['factual_unsupported'], 1)
+
+        with open(os.path.join(self.tmpdir, 'claims.jsonl')) as f:
+            claim = json.loads(f.readline())
+        self.assertEqual(claim['cited_source_ids'], [])
+        self.assertEqual(claim['support_status'], 'unsupported')
+
+
 class TestSupportScore(unittest.TestCase):
     """Unit tests for compute_support_score."""
 

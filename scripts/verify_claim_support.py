@@ -189,6 +189,16 @@ def cmd_verify(args: argparse.Namespace) -> None:
         ev_by_source.setdefault(sid, []).append(ev.get('quote', ''))
         ev_by_id[eid] = ev
 
+    # Map report [N] citations back to stable source_ids. Numbering mirrors
+    # citation_manager assign-display-numbers (registration order, first
+    # occurrence wins); keep the two in sync.
+    source_to_display: dict[str, int] = {}
+    for i, src in enumerate(sources, 1):
+        sid = src.get('source_id')
+        if sid and sid not in source_to_display:
+            source_to_display[sid] = i
+    display_to_source = {num: sid for sid, num in source_to_display.items()}
+
     # Deduplicate claims
     seen = set()
     unique_claims = []
@@ -207,6 +217,19 @@ def cmd_verify(args: argparse.Namespace) -> None:
         # Gather evidence for this claim
         cited_ids = claim.get('cited_source_ids', [])
         evidence_ids = claim.get('evidence_ids', [])
+
+        # Link unresolved claims: resolve report [N] citations to source_ids.
+        # extract_claims captures the numbers but leaves cited_source_ids empty;
+        # without this, every cited factual claim scores as unsupported.
+        if not cited_ids:
+            linked = []
+            for num in claim.get('_citation_numbers', []):
+                sid = display_to_source.get(num)
+                if sid and sid not in linked:
+                    linked.append(sid)
+            if linked:
+                cited_ids = linked
+                claim['cited_source_ids'] = linked
 
         # Collect evidence quotes from linked evidence_ids
         quotes = []
