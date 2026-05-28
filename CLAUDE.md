@@ -66,7 +66,21 @@ Data model (v3.0): append-only JSONL with stable `sha256(...)[:16]` IDs — `sou
 
 ## Conventions & Patterns
 
-- **Stdlib only** — do not add third-party Python dependencies.
+- **Stdlib only** — do not add third-party Python dependencies. (This forecloses `jsonschema`: `schemas/` is **docs-only**, never runtime-validated — see `schemas/README.md`.)
 - Run state is **append-only JSONL** keyed by stable `sha256` IDs; don't mutate in place (the one exception is `verify_claim_support`'s rewrite).
 - Scripts expose **argparse subcommands** and emit JSON to stdout.
 - Citation numbers `[N]` are render-time only; provenance is the stable `source_id`.
+
+### v3.0 invariants (load-bearing — don't break these without reading the rationale)
+
+- **One numbering authority:** all `[N]` numbering goes through `citation_manager.build_display_map(sources)` (dedup + contiguous). `assign-display-numbers`, `export-bibliography`, and `verify_claim_support` all call it — `verify_claim_support` imports it cross-script via `sys.path`. Never re-derive `[N]` inline.
+- **Verification ordering is load-bearing:** register *all* sources → `assign-display-numbers` → draft using that exact map → `extract_claims` → `verify_claim_support verify --strict`. `[N]` is a source's position in `sources.jsonl`; drafting `[5]` then registering a different 5th source silently corrupts the citation (detectable, not fixable — append-only). See `reference/methodology.md` → "Verification Leg".
+- **`extract_claims add` contract hole:** the manual `add` subcommand does *not* write `_citation_numbers`, so the verifier's auto-linker can't see it — `add` callers MUST pass `cited_source_ids` explicitly.
+- **`--strict` gate semantics:** `verify_claim_support verify --strict` fails factual claims that are `unsupported` OR `needs_review` (overlap score < 0.35), not just zero-link claims.
+- **Source floor is tiered by design (`validate_report`):** `<5` = error, `5–9` = warning, `≥10` = pass. This intentionally matches `quality-gates.md`'s graceful-degradation band — do **not** "simplify" it to a flat `<10` error.
+
+### Tooling gotchas
+
+- **Type check with `npx pyright`** (config in `pyrightconfig.json`: standard mode, `extraPaths:["scripts"]` so cross-script imports resolve, deprecated-alias/missing-type-arg noise off). Keep the baseline at **0 errors / 0 warnings**.
+- **`.gitignore` has a broad `*.json` rule** (with a `!schemas/*.json` exception). New config JSON like `pyrightconfig.json` is excluded — it was force-added (`git add -f`); `package.json` is likewise ignored unless you add a `!` exception.
+- **No git user identity is set in this repo** — commit with inline `git -c user.name="..." -c user.email="..."` (do not modify git config).
