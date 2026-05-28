@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What Changed — Deep Research Skill</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="inner">
+    <span class="brand"><span class="dot"></span> Deep Research Skill</span>
+    <nav>
+      <a href="index.html">Overview</a>
+      <a href="scripts.html">Scripts</a>
+      <a class="active" href="changes.html">What Changed</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero" style="padding:48px 24px 40px;">
+  <div class="inner">
+    <p class="eyebrow">Remediation round &middot; 13 beads issues</p>
+    <h1 style="font-size:clamp(26px,4vw,38px);">What changed, and why</h1>
+    <p>Every open issue in the tracker is now closed: two P1 bug fixes, the v3.0 verification leg documented and tightened,
+       a scaffold removed, validation gates hardened, stale docs reconciled, and the test suite nearly doubled.</p>
+    <div class="stats">
+      <div class="stat"><div class="num">13</div><div class="lbl">issues closed</div></div>
+      <div class="stat"><div class="num">+33</div><div class="lbl">tests added (47&rarr;80)</div></div>
+      <div class="stat"><div class="num">&minus;584</div><div class="lbl">lines of scaffold deleted</div></div>
+      <div class="stat"><div class="num">0 / 0</div><div class="lbl">pyright after</div></div>
+    </div>
+  </div>
+</div>
+
+<main>
+
+  <section>
+    <h2>All issues at a glance</h2>
+    <table>
+      <thead><tr><th>ID</th><th>Priority</th><th>Title</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td><code>zwo</code></td><td><span class="badge p0">P0</span></td><td>Document v3.0 verification leg + pin ordering</td><td><span class="badge closed">closed</span></td></tr>
+        <tr><td><code>c23</code></td><td><span class="badge p1">P1</span></td><td>Decision: keep or delete research_engine.py</td><td><span class="badge closed">deleted</span></td></tr>
+        <tr><td><code>0gn</code></td><td><span class="badge p1">P1</span> <span class="badge bug">bug</span></td><td>md_to_html: write HTML to disk + real argparse</td><td><span class="badge closed">closed</span></td></tr>
+        <tr><td><code>k4z</code></td><td><span class="badge p1">P1</span> <span class="badge bug">bug</span></td><td>verify_citations: dead branch + HEAD 403s</td><td><span class="badge closed">closed</span></td></tr>
+        <tr><td><code>pjj</code></td><td><span class="badge p1">P1</span> <span class="badge bug">bug</span></td><td>--resume silently discarding loaded state</td><td><span class="badge closed">mooted</span></td></tr>
+        <tr><td><code>3qs</code></td><td><span class="badge p2">P2</span></td><td>Resolve schema enforcement: validate or demote</td><td><span class="badge closed">closed</span></td></tr>
+        <tr><td><code>aq0</code></td><td><span class="badge p2">P2</span></td><td>Give source_evaluator a CLI</td><td><span class="badge closed">closed</span></td></tr>
+        <tr><td><code>r7t</code></td><td><span class="badge p2">P2</span></td><td>Claim-support gate must discriminate weak support</td><td><span class="badge closed">closed</span></td></tr>
+        <tr><td><code>rp4</code></td><td><span class="badge p2">P2</span></td><td>Promote source-floor from warning to gate error</td><td><span class="badge closed">closed</span></td></tr>
+        <tr><td><code>loa</code></td><td><span class="badge p3">P3</span> <span class="badge bug">bug</span></td><td>Reconcile display-number drift</td><td><span class="badge closed">closed</span></td></tr>
+        <tr><td><code>5vu</code></td><td><span class="badge p3">P3</span></td><td>Reconcile stale docs</td><td><span class="badge closed">closed</span></td></tr>
+        <tr><td><code>rye</code></td><td><span class="badge p3">P3</span></td><td>Backfill tests for untested scripts</td><td><span class="badge closed">closed</span></td></tr>
+        <tr><td><code>xtp</code></td><td><span class="badge p3">P3</span></td><td>Type health: pyrightconfig + Optional accesses</td><td><span class="badge closed">closed</span></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Verification leg &amp; scaffold removal <span class="h2sub">zwo &middot; c23 / pjj / xtp</span></h2>
+    <p>The methodology mentioned the v3.0 verification scripts <em>nowhere</em>, so the model would never run them. The
+       leg is now documented across <code>methodology.md</code>, <code>report-assembly.md</code>, <code>quality-gates.md</code>
+       and <code>SKILL.md</code>, with the load-bearing ordering pinned (see the
+       <a href="index.html#pipeline">pipeline diagram</a>).</p>
+    <p><code>research_engine.py</code> — 584 lines of self-admitted scaffold that printed instruction strings and never
+       searched — was deleted after confirming zero external imports (via LSP <code>findReferences</code>). That mooted the
+       <code>--resume</code> bug (<code>pjj</code>) and the Optional-access fixes (<code>xtp</code>) outright.</p>
+  </section>
+
+  <section>
+    <h2>Bug fixes <span class="h2sub">k4z &middot; 0gn</span></h2>
+
+    <h3>k4z — URL verification stopped flagging valid citations <a class="anchor" href="scripts.html#verify_citations">#</a></h3>
+    <div class="ba">
+      <div class="col before">
+        <span class="tag">before</span>
+<pre>req = request.Request(url, method=<span class="s">'HEAD'</span>)
+req.add_header(<span class="s">'User-Agent'</span>,
+  <span class="s">'Mozilla/5.0 (Research Citation Verifier)'</span>)
+with urlopen(req) as r:
+    <span class="k">if</span> r.status == <span class="n">200</span>:
+        <span class="k">return</span> True, <span class="s">"URL accessible"</span>
+    <span class="k">else</span>:                  <span class="c"># unreachable</span>
+        <span class="k">return</span> False, ...</pre>
+      </div>
+      <div class="col after">
+        <span class="tag">after</span>
+<pre><span class="c"># browser UA + HEAD-&gt;GET fallback on</span>
+<span class="c"># method/client-reject codes; 2xx/3xx ok</span>
+<span class="k">def</span> <span class="f">_attempt</span>(method):
+    req = Request(url, method=method,
+        headers=_BROWSER_HEADERS)
+    with urlopen(req) as r:
+        <span class="k">if</span> <span class="n">200</span> &lt;= r.status &lt; <span class="n">400</span>:
+            <span class="k">return</span> True, ...</pre>
+      </div>
+    </div>
+    <p>The old code custom-UA'd a <code>HEAD</code> request that Cloudflare and friends 403, and its non-200 branch was
+       unreachable because <code>urlopen</code> raises on non-2xx. Now valid citations behind bot-protection resolve.</p>
+
+    <h3>0gn — md_to_html actually writes a file now <a class="anchor" href="scripts.html#md_to_html">#</a></h3>
+    <p><code>main()</code> hand-rolled <code>sys.argv</code> (so <code>--help</code> crashed) and only printed a 1000-char
+       preview. It now has real argparse (<code>-o/--out</code>, <code>--template</code>, <code>--fragments-only</code>),
+       substitutes the report into the McKinsey template, and writes a complete HTML document to disk.</p>
+  </section>
+
+  <section>
+    <h2>Gates &amp; correctness <span class="h2sub">rp4 &middot; r7t &middot; loa &middot; aq0 &middot; 3qs</span></h2>
+
+    <h3>rp4 — source floor is now a tiered gate</h3>
+    <p>It previously only ever warned. It now errors (non-zero exit) below 5 sources — the documented hard stop — while
+       keeping 5–9 as a warning so the documented graceful-degradation band isn't broken.</p>
+
+    <h3>r7t — the claim-support gate discriminates weak support</h3>
+    <div class="ba">
+      <div class="col before">
+        <span class="tag">before</span>
+<pre><span class="c"># only zero-link claims ever failed</span>
+<span class="k">if</span> args.strict <span class="k">and</span> factual_unsupported &gt; <span class="n">0</span>:
+    passed = False</pre>
+      </div>
+      <div class="col after">
+        <span class="tag">after</span>
+<pre><span class="c"># weak/irrelevant support fails too</span>
+factual_failing = (factual_unsupported
+                   + factual_needs_review)
+<span class="k">if</span> args.strict <span class="k">and</span> factual_failing &gt; <span class="n">0</span>:
+    passed = False</pre>
+      </div>
+    </div>
+    <p>Before, any factual claim linked to <em>any</em> evidence row passed regardless of relevance. Now
+       <code>needs_review</code> (overlap score &lt; 0.35) fails <code>--strict</code> too.</p>
+
+    <h3>loa — one numbering authority, no drift</h3>
+    <p>Three sites derived <code>[N]</code> independently (one counted duplicates, one deduped). They now all call a single
+       <code>build_display_map(sources)</code> helper, verified consistent even when <code>sources.jsonl</code> contains a
+       duplicate <code>source_id</code>.</p>
+
+    <h3>aq0 — source_evaluator got a CLI; 3qs — schemas demoted to docs</h3>
+    <p><code>source_evaluator.py</code> was orphaned (referenced by the methodology but only had a demo block); it now has a
+       real <code>--json</code> CLI. The JSON Schemas in <code>schemas/</code> are explicitly documentation-only (a stdlib-only
+       project adds no <code>jsonschema</code> dependency), and <code>claim.schema.json</code> now documents the internal
+       <code>_</code>-prefixed fields it previously forbade.</p>
+  </section>
+
+  <section>
+    <h2>Docs, tests &amp; type health <span class="h2sub">5vu &middot; rye &middot; xtp</span></h2>
+    <ul class="clean">
+      <li><strong>5vu</strong> — README architecture lists all 9 scripts (scaffold removed), the "9 checks" list actually has 9, the source floor reflects the new tiers, and the "8-phase" branding is reconciled with the 4.5 interstitial + verification leg.</li>
+      <li><strong>rye</strong> — new tests for the 5 remaining untested scripts: <code>validate_report</code>, <code>verify_citations</code>, <code>md_to_html</code>, <code>source_evaluator</code>, <code>verify_html</code>. Network-touching paths are tested via pure-function imports; the rest via the CLI. Suite 47 &rarr; 80, all green.</li>
+      <li><strong>xtp</strong> — a <code>pyrightconfig.json</code> (standard mode, <code>scripts</code> on <code>extraPaths</code>, deprecated-alias / missing-type-arg noise off) brings the checker from 134 errors + 886 warnings to a clean <strong>0 / 0</strong> baseline.</li>
+    </ul>
+  </section>
+
+</main>
+
+<footer>
+  <div class="inner">
+    <span>Deep Research Skill — generated documentation</span>
+    <span><a href="scripts.html">&larr; Scripts</a> &middot; <a href="index.html">Overview</a></span>
+  </div>
+</footer>
+
+</body>
+</html>

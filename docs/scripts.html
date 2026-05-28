@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Script Reference — Deep Research Skill</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="inner">
+    <span class="brand"><span class="dot"></span> Deep Research Skill</span>
+    <nav>
+      <a href="index.html">Overview</a>
+      <a class="active" href="scripts.html">Scripts</a>
+      <a href="changes.html">What Changed</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero" style="padding:48px 24px 40px;">
+  <div class="inner">
+    <p class="eyebrow">scripts/ &middot; Python 3.9+ stdlib only</p>
+    <h1 style="font-size:clamp(26px,4vw,38px);">Script reference</h1>
+    <p>Nine argparse CLIs that emit JSON to stdout. None is an orchestrator — they are a persistence and
+       post-hoc-validation substrate the model shells out to.</p>
+  </div>
+</div>
+
+<main>
+
+  <section>
+    <h2>At a glance</h2>
+    <table>
+      <thead><tr><th>Script</th><th>Role</th><th>Writes / reads</th></tr></thead>
+      <tbody>
+        <tr><td><a href="#citation_manager"><code>citation_manager.py</code></a></td><td>Stable source IDs, run manifest, display numbering</td><td><code>run_manifest.json</code>, <code>sources.jsonl</code></td></tr>
+        <tr><td><a href="#evidence_store"><code>evidence_store.py</code></a></td><td>Append-only evidence rows</td><td><code>evidence.jsonl</code></td></tr>
+        <tr><td><a href="#extract_claims"><code>extract_claims.py</code></a></td><td>Decompose report into typed atomic claims</td><td><code>claims.jsonl</code></td></tr>
+        <tr><td><a href="#verify_claim_support"><code>verify_claim_support.py</code></a></td><td>Deterministic claim-support gate</td><td><code>claims.jsonl</code> (rewrites)</td></tr>
+        <tr><td><a href="#source_evaluator"><code>source_evaluator.py</code></a></td><td>Source credibility scoring (0–100)</td><td>stdout JSON</td></tr>
+        <tr><td><a href="#validate_report"><code>validate_report.py</code></a></td><td>9-check structure validator (gate)</td><td>exit code</td></tr>
+        <tr><td><a href="#verify_citations"><code>verify_citations.py</code></a></td><td>DOI/URL/hallucination citation checker</td><td>exit code</td></tr>
+        <tr><td><a href="#md_to_html"><code>md_to_html.py</code></a></td><td>Markdown report &rarr; templated HTML</td><td><code>.html</code> file</td></tr>
+        <tr><td><a href="#verify_html"><code>verify_html.py</code></a></td><td>HTML/markdown consistency checks</td><td>exit code</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="citation_manager">
+    <h2>citation_manager.py <span class="badge neutral">evidence pipeline</span></h2>
+    <p>Owns source identity and the run manifest. <code>source_id = sha256(canonical_locator)[:16]</code>, where the
+       canonical locator prefers DOI, then arXiv, then a normalized URL (lowercased host, fragment and tracking params
+       stripped).</p>
+    <p>It is also the single home of <code>build_display_map(sources)</code> — the one authority for <code>[N]</code>
+       numbering, shared by <code>assign-display-numbers</code>, <code>export-bibliography</code>, and the verifier.</p>
+<pre><span class="c"># initialise a run (creates manifest + empty JSONL files)</span>
+python scripts/citation_manager.py init-run <span class="f">--out-dir</span> [dir] <span class="f">--query</span> <span class="s">"..."</span> <span class="f">--mode</span> deep
+
+<span class="c"># register a source -&gt; returns a stable source_id (re-registering is a no-op)</span>
+python scripts/citation_manager.py register-source <span class="f">--json</span> <span class="s">'{"raw_url":"...","title":"..."}'</span> <span class="f">--dir</span> [dir]
+
+<span class="c"># after ALL sources are registered, emit the source_id -&gt; [N] map</span>
+python scripts/citation_manager.py assign-display-numbers <span class="f">--dir</span> [dir]
+
+<span class="c"># render the bibliography (markdown or json)</span>
+python scripts/citation_manager.py export-bibliography <span class="f">--dir</span> [dir] <span class="f">--style</span> markdown</pre>
+  </section>
+
+  <section id="evidence_store">
+    <h2>evidence_store.py <span class="badge neutral">evidence pipeline</span></h2>
+    <p>Appends evidence spans pulled from sources. <code>evidence_id = sha256(source_id + normalized_quote + locator)[:16]</code>,
+       so the same quote from the same source dedupes. Evidence must be persisted here <em>before</em> synthesis so
+       continuation agents and the claim-support gate can see the full trail.</p>
+<pre><span class="c"># add an evidence span tied to a source</span>
+python scripts/evidence_store.py add <span class="f">--json</span> <span class="s">'{"source_id":"...","quote":"exact text",
+  "evidence_type":"direct_quote","locator":"page 5"}'</span> <span class="f">--dir</span> [dir]
+
+python scripts/evidence_store.py list <span class="f">--dir</span> [dir] <span class="f">--source-id</span> [id]</pre>
+  </section>
+
+  <section id="extract_claims">
+    <h2>extract_claims.py <span class="badge neutral">evidence pipeline</span></h2>
+    <p>Parses the drafted report into atomic, typed claims. Each sentence becomes a claim with a
+       <code>claim_type</code> — <code>factual</code> (hard-fails on no support), <code>synthesis</code>,
+       <code>recommendation</code>, or <code>speculation</code> (no support gate).</p>
+    <div class="callout warn">
+      <div class="title">Contract hole worth knowing</div>
+      <code>extract</code> captures each sentence's <code>[N]</code> into <code>_citation_numbers</code> but leaves
+      <code>cited_source_ids</code> empty (linking is deferred to the verifier). The manual <code>add</code> subcommand
+      does <strong>not</strong> write <code>_citation_numbers</code>, so any claim added that way must pass
+      <code>cited_source_ids</code> explicitly or it will never link.
+    </div>
+<pre>python scripts/extract_claims.py extract <span class="f">--report</span> [report.md] <span class="f">--dir</span> [dir]
+python scripts/extract_claims.py stats <span class="f">--dir</span> [dir]</pre>
+  </section>
+
+  <section id="verify_claim_support">
+    <h2>verify_claim_support.py <span class="badge neutral">evidence pipeline</span> <span class="badge closed">gate</span></h2>
+    <p>The deterministic, no-LLM claim-support gate. It resolves each claim's <code>[N]</code> back to a
+       <code>source_id</code> via <code>build_display_map</code>, gathers linked evidence quotes, and scores support with
+       a weighted blend of token overlap, number match, year match, and entity match.</p>
+    <ul class="clean">
+      <li>score &ge; 0.6 &rarr; <code>supported</code></li>
+      <li>0.35 &le; score &lt; 0.6 &rarr; <code>partial</code></li>
+      <li>score &lt; 0.35 &rarr; <code>needs_review</code></li>
+    </ul>
+<pre><span class="c"># --strict exits non-zero on any factual claim that is unsupported OR needs_review</span>
+python scripts/verify_claim_support.py verify <span class="f">--dir</span> [dir] <span class="f">--strict</span>
+python scripts/verify_claim_support.py report <span class="f">--dir</span> [dir]</pre>
+  </section>
+
+  <section id="source_evaluator">
+    <h2>source_evaluator.py <span class="badge neutral">scoring</span></h2>
+    <p>Scores a source 0–100 across domain authority, recency, expertise, and bias, and returns a trust recommendation.</p>
+<pre>python scripts/source_evaluator.py <span class="f">--json</span> <span class="s">'{"url":"https://nature.com/...",
+  "title":"...","publication_date":"2025-10-15","author":"..."}'</span>
+
+<span class="c"># -&gt; {"overall_score": 86.5, ..., "recommendation": "high_trust"}</span></pre>
+  </section>
+
+  <section id="validate_report">
+    <h2>validate_report.py <span class="badge neutral">quality gate</span></h2>
+    <p>Nine structural checks: executive-summary length, required sections, citation formatting, bibliography integrity,
+       placeholder text, content-truncation, word count, the <strong>source floor</strong>, and broken internal links.</p>
+    <div class="callout">
+      <div class="title">Source floor is a real gate</div>
+      Fewer than 5 sources is a hard error (non-zero exit); 5–9 is a warning (note in Limitations); 10+ passes clean.
+    </div>
+<pre>python scripts/validate_report.py <span class="f">--report</span> [report.md]
+<span class="c"># exit 0 = pass, exit 1 = errors present</span></pre>
+  </section>
+
+  <section id="verify_citations">
+    <h2>verify_citations.py <span class="badge neutral">quality gate</span></h2>
+    <p>Catches fabricated citations: resolves DOIs, checks URL reachability, and runs hallucination heuristics
+       (future years, anachronistic AI terms in old papers, templated titles, recent claims with no verification path).</p>
+    <div class="callout ok">
+      <div class="title">Reachability that doesn't false-positive</div>
+      URL checks send a real browser User-Agent and fall back from <code>HEAD</code> to <code>GET</code> when a server
+      rejects the method or client, treating any 2xx/3xx as reachable — so valid citations behind bot-protection are no
+      longer flagged as dead.
+    </div>
+<pre>python scripts/verify_citations.py <span class="f">--report</span> [report.md] [<span class="f">--strict</span>]</pre>
+  </section>
+
+  <section id="md_to_html">
+    <h2>md_to_html.py <span class="badge neutral">rendering</span></h2>
+    <p>Converts a markdown report into a full, self-contained HTML document by substituting the report into the
+       McKinsey-style template (<code>{{CONTENT}}</code>, <code>{{BIBLIOGRAPHY}}</code>, <code>{{TITLE}}</code>,
+       <code>{{DATE}}</code>, <code>{{SOURCE_COUNT}}</code>). Falls back to a minimal HTML5 skeleton if no template is found.</p>
+<pre>python scripts/md_to_html.py [report.md]                <span class="c"># writes report.html next to it</span>
+python scripts/md_to_html.py [report.md] <span class="f">-o</span> out.html
+python scripts/md_to_html.py [report.md] <span class="f">--fragments-only</span>  <span class="c"># just the HTML fragments</span></pre>
+  </section>
+
+  <section id="verify_html">
+    <h2>verify_html.py <span class="badge neutral">rendering</span></h2>
+    <p>Confirms the rendered HTML faithfully mirrors the markdown: all sections present, no unreplaced
+       <code>{{placeholders}}</code>, no emojis, valid document structure, and citations / bibliography carried across.</p>
+<pre>python scripts/verify_html.py <span class="f">--html</span> [report.html] <span class="f">--md</span> [report.md]</pre>
+  </section>
+
+  <section>
+    <h2>Testing &amp; types</h2>
+    <p>The suite is stdlib <code>unittest</code> only (no pytest), invoking the CLIs via <code>subprocess</code> and
+       importing pure functions where network calls must be avoided.</p>
+<pre>python -m unittest discover tests   <span class="c"># 80 tests</span>
+npx pyright                         <span class="c"># 0 errors / 0 warnings (see pyrightconfig.json)</span></pre>
+  </section>
+
+</main>
+
+<footer>
+  <div class="inner">
+    <span>Deep Research Skill — generated documentation</span>
+    <span><a href="index.html">&larr; Overview</a> &middot; <a href="changes.html">What changed &rarr;</a></span>
+  </div>
+</footer>
+
+</body>
+</html>

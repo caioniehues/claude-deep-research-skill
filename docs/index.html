@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deep Research Skill — Documentation</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="inner">
+    <span class="brand"><span class="dot"></span> Deep Research Skill</span>
+    <nav>
+      <a class="active" href="index.html">Overview</a>
+      <a href="scripts.html">Scripts</a>
+      <a href="changes.html">What Changed</a>
+    </nav>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="inner">
+    <p class="eyebrow">Claude Code Skill &middot; v3.0 auditability architecture</p>
+    <h1>A research engine that moves citation integrity<br>off the model and onto disk.</h1>
+    <p>The model orchestrates retrieval and synthesis by following <code>reference/methodology.md</code>; a layer of
+       stdlib-only Python CLIs persists every source, quote, and claim to append-only JSONL and verifies that every
+       factual claim traces back to stored evidence — deterministically, with no LLM in the loop.</p>
+    <div class="stats">
+      <div class="stat"><div class="num">9</div><div class="lbl">stdlib-only scripts</div></div>
+      <div class="stat"><div class="num">80</div><div class="lbl">tests passing</div></div>
+      <div class="stat"><div class="num">13</div><div class="lbl">issues resolved</div></div>
+      <div class="stat"><div class="num">0 / 0</div><div class="lbl">pyright errors / warnings</div></div>
+    </div>
+  </div>
+</div>
+
+<main>
+
+  <section id="what">
+    <h2>What this is</h2>
+    <p class="lead">A Claude Code <strong>skill</strong> — a bundle of <code>SKILL.md</code> + reference docs + scripts that
+      teaches the model a disciplined, citation-first research workflow.</p>
+    <p>The Python in <code>scripts/</code> is deliberately <strong>not</strong> an orchestrator. The model does the fuzzy
+      work (decomposing the question, searching, reading, synthesizing); the scripts do the deterministic work
+      (assigning stable IDs, storing evidence, scoring claim support, validating structure). This split is the whole
+      point of the v3.0 design: the parts a language model is unreliable at — never dropping a citation, never letting a
+      claim drift from its evidence — are handled by code and persisted to disk, so they survive context compaction and
+      continuation.</p>
+    <div class="grid cols-3">
+      <div class="card"><h3>Model owns</h3><ul class="clean"><li>Scope &amp; planning</li><li>Parallel retrieval</li><li>Triangulation</li><li>Synthesis &amp; critique</li><li>Report prose</li></ul></div>
+      <div class="card"><h3>Scripts own</h3><ul class="clean"><li>Stable source IDs</li><li>Append-only evidence</li><li>Typed claim ledger</li><li>Claim-support gate</li><li>Structure validation</li></ul></div>
+      <div class="card"><h3>Guarantees</h3><ul class="clean"><li>Every <code>[N]</code> resolves to a real source</li><li>Factual claims trace to evidence</li><li>Numbering never drifts</li><li>State survives compaction</li></ul></div>
+    </div>
+  </section>
+
+  <section id="datamodel">
+    <h2>The v3.0 data model <span class="h2sub">Append-only JSONL with stable <code>sha256(...)[:16]</code> IDs, tied together by a run manifest.</span></h2>
+    <div class="diagram">
+      <svg viewBox="0 0 860 300" role="img" aria-label="Data model: run_manifest ties sources, evidence and claims">
+        <defs>
+          <marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+            <path d="M0,0 L8,3 L0,6 Z" fill="#64748b"></path>
+          </marker>
+          <style>
+            .box{rx:10;ry:10;fill:#fff;stroke:#cbd5e1;}
+            .hdr{fill:#0f172a;font:700 14px var(--mono, monospace);}
+            .ttl{fill:#0f172a;font:700 14px monospace;}
+            .sub{fill:#64748b;font:11px monospace;}
+            .lnk{fill:#2563eb;font:11px monospace;}
+            .edge{stroke:#64748b;stroke-width:1.6;fill:none;}
+            .manifest{fill:#0f172a;}
+            .mtxt{fill:#fff;font:700 13px monospace;}
+            .msub{fill:#94a3b8;font:11px monospace;}
+          </style>
+        </defs>
+
+        <!-- run manifest -->
+        <rect class="manifest" x="280" y="14" width="300" height="52" rx="10"></rect>
+        <text class="mtxt" x="300" y="38">run_manifest.json</text>
+        <text class="msub" x="300" y="55">query &middot; mode &middot; artifact paths &middot; assumptions</text>
+
+        <line class="edge" x1="430" y1="66" x2="430" y2="92" marker-end="url(#arr)"></line>
+
+        <!-- sources -->
+        <rect class="box" x="40" y="110" width="230" height="86"></rect>
+        <text class="ttl" x="58" y="138">sources.jsonl</text>
+        <text class="sub" x="58" y="158">source_id = sha256(locator)</text>
+        <text class="sub" x="58" y="176">title &middot; canonical_locator &middot; type</text>
+
+        <!-- evidence -->
+        <rect class="box" x="315" y="110" width="230" height="86"></rect>
+        <text class="ttl" x="333" y="138">evidence.jsonl</text>
+        <text class="sub" x="333" y="158">evidence_id = sha256(...)</text>
+        <text class="lnk" x="333" y="176">source_id &rarr; sources</text>
+
+        <!-- claims -->
+        <rect class="box" x="590" y="110" width="230" height="86"></rect>
+        <text class="ttl" x="608" y="138">claims.jsonl</text>
+        <text class="sub" x="608" y="158">claim_id = sha256(...)</text>
+        <text class="lnk" x="608" y="176">cited_source_ids &middot; evidence_ids</text>
+
+        <!-- edges between artifacts -->
+        <line class="edge" x1="545" y1="153" x2="588" y2="153" marker-end="url(#arr)"></line>
+        <line class="edge" x1="270" y1="153" x2="313" y2="153" marker-end="url(#arr)"></line>
+
+        <!-- support status -->
+        <rect class="box" x="590" y="222" width="230" height="60" style="fill:#f0fdf4;stroke:#bbf7d0;"></rect>
+        <text class="ttl" x="608" y="248" style="fill:#15803d;">support_status</text>
+        <text class="sub" x="608" y="268">supported / partial / needs_review</text>
+        <line class="edge" x1="705" y1="196" x2="705" y2="220" marker-end="url(#arr)"></line>
+      </svg>
+    </div>
+    <p>Source identity is a hash of the canonical locator (DOI &gt; arXiv &gt; normalized URL), so it is stable across
+      edits, renumbering, and continuation. Display numbers <code>[N]</code> are derived at render time and never stored.</p>
+  </section>
+
+  <section id="pipeline">
+    <h2>The verification leg <span class="h2sub">Runs after the report is drafted. Ordering is load-bearing — see the callout below.</span></h2>
+    <div class="diagram">
+      <svg viewBox="0 0 920 150" role="img" aria-label="Verification pipeline ordering">
+        <defs>
+          <marker id="arr2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+            <path d="M0,0 L8,3 L0,6 Z" fill="#0ea5e9"></path>
+          </marker>
+        </defs>
+        <g font-family="monospace">
+          <!-- step template repeated -->
+          <g>
+            <rect x="8"  y="40" width="130" height="56" rx="9" fill="#0f172a"></rect>
+            <text x="22" y="64" fill="#7dd3fc" font-size="11" font-weight="700">1 &middot; init-run</text>
+            <text x="22" y="82" fill="#cbd5e1" font-size="10">create JSONL</text>
+          </g>
+          <g>
+            <rect x="160" y="40" width="130" height="56" rx="9" fill="#0f172a"></rect>
+            <text x="174" y="64" fill="#7dd3fc" font-size="11" font-weight="700">2 &middot; register</text>
+            <text x="174" y="82" fill="#cbd5e1" font-size="10">all sources</text>
+          </g>
+          <g>
+            <rect x="312" y="40" width="140" height="56" rx="9" fill="#0f172a"></rect>
+            <text x="326" y="64" fill="#7dd3fc" font-size="11" font-weight="700">3 &middot; assign-#</text>
+            <text x="326" y="82" fill="#cbd5e1" font-size="10">id &rarr; [N] map</text>
+          </g>
+          <g>
+            <rect x="474" y="40" width="130" height="56" rx="9" fill="#1d4ed8"></rect>
+            <text x="488" y="64" fill="#bfdbfe" font-size="11" font-weight="700">4 &middot; draft</text>
+            <text x="488" y="82" fill="#dbeafe" font-size="10">use that map</text>
+          </g>
+          <g>
+            <rect x="626" y="40" width="130" height="56" rx="9" fill="#0f172a"></rect>
+            <text x="640" y="64" fill="#7dd3fc" font-size="11" font-weight="700">5 &middot; extract</text>
+            <text x="640" y="82" fill="#cbd5e1" font-size="10">typed claims</text>
+          </g>
+          <g>
+            <rect x="778" y="40" width="134" height="56" rx="9" fill="#0d9488"></rect>
+            <text x="792" y="64" fill="#99f6e4" font-size="11" font-weight="700">6 &middot; verify</text>
+            <text x="792" y="82" fill="#ccfbf1" font-size="10">--strict gate</text>
+          </g>
+          <line x1="138" y1="68" x2="159" y2="68" stroke="#0ea5e9" stroke-width="1.8" marker-end="url(#arr2)"></line>
+          <line x1="290" y1="68" x2="311" y2="68" stroke="#0ea5e9" stroke-width="1.8" marker-end="url(#arr2)"></line>
+          <line x1="452" y1="68" x2="473" y2="68" stroke="#0ea5e9" stroke-width="1.8" marker-end="url(#arr2)"></line>
+          <line x1="604" y1="68" x2="625" y2="68" stroke="#0ea5e9" stroke-width="1.8" marker-end="url(#arr2)"></line>
+          <line x1="756" y1="68" x2="777" y2="68" stroke="#0ea5e9" stroke-width="1.8" marker-end="url(#arr2)"></line>
+        </g>
+      </svg>
+    </div>
+    <div class="callout danger">
+      <div class="title">Why the order matters</div>
+      <code>[N]</code> <strong>is</strong> a source's position in <code>sources.jsonl</code>. If you draft <code>[5]</code>
+      and only then register a different 5th source, the citation silently corrupts — and because the store is
+      append-only, that is detectable but not fixable without re-drafting. So: register every source <em>before</em>
+      drafting, run <code>assign-display-numbers</code>, then draft using exactly that map.
+    </div>
+    <p>The gate itself is deterministic: it resolves each claim's <code>[N]</code> back to a <code>source_id</code>, gathers
+      the linked evidence quotes, and scores support via entity / number / date / lexical-overlap checks — no model call.
+      Under <code>--strict</code> it exits non-zero if any factual claim is <em>unsupported</em> or <em>needs_review</em>.</p>
+  </section>
+
+  <section id="phases">
+    <h2>The research pipeline <span class="h2sub">8 core phases, an interstitial 4.5, and the post-package verification leg.</span></h2>
+    <table>
+      <thead><tr><th>#</th><th>Phase</th><th>Purpose</th><th>Modes</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Scope</td><td>Frame boundaries &amp; success criteria</td><td>all</td></tr>
+        <tr><td>2</td><td>Plan</td><td>Source strategy, query variants, quality gates</td><td>std+</td></tr>
+        <tr><td>3</td><td>Retrieve</td><td>Parallel search + sub-agents; persist evidence</td><td>all</td></tr>
+        <tr><td>4</td><td>Triangulate</td><td>Cross-reference claims across 3+ sources</td><td>std+</td></tr>
+        <tr><td>4.5</td><td>Outline Refinement</td><td>Adapt structure to the evidence found</td><td>std+</td></tr>
+        <tr><td>5</td><td>Synthesize</td><td>Patterns, frameworks, novel insight</td><td>std+</td></tr>
+        <tr><td>6</td><td>Critique</td><td>Red-team; loop back to Retrieve on gaps</td><td>deep+</td></tr>
+        <tr><td>7</td><td>Refine</td><td>Strengthen weak areas</td><td>deep+</td></tr>
+        <tr><td>8</td><td>Package</td><td>Progressive report assembly</td><td>all</td></tr>
+        <tr><td>&#10003;</td><td>Verify (v3.0)</td><td>Claim-support gate over stored evidence</td><td>all</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="explore">
+    <h2>Explore</h2>
+    <div class="grid cols-2">
+      <a class="card" href="scripts.html" style="text-decoration:none;color:inherit;">
+        <h3>Script reference &rarr;</h3>
+        <p>All 9 stdlib-only CLIs: what each does, how to invoke it, and the key behaviors that make the pipeline tick.</p>
+      </a>
+      <a class="card" href="changes.html" style="text-decoration:none;color:inherit;">
+        <h3>What changed &rarr;</h3>
+        <p>The 13 beads issues resolved this round — bug fixes, the verification leg, type health, and test backfill, with before/after detail.</p>
+      </a>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="inner">
+    <span>Deep Research Skill — generated documentation</span>
+    <span>stdlib-only &middot; append-only JSONL &middot; deterministic claim-support gate</span>
+  </div>
+</footer>
+
+</body>
+</html>
